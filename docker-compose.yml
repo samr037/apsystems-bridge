@@ -1,0 +1,95 @@
+# APsystems Open Bridge — Docker Compose orchestration
+# ─────────────────────────────────────────────────────────────────────────────
+# Two services share a single image, selected at runtime by `command:`.
+#
+#   aps-unified   pair + poll daemon (talks to the Sonoff CC2652P dongle)
+#   aps-webui     stdlib http.server on :8088 (dashboard + JSON API)
+#
+# Quickstart on a fresh host:
+#
+#   sudo mkdir -p /opt/aps/etc /opt/aps/logs
+#   docker compose up -d
+#
+# Persistent state lives entirely on the host under /opt/aps/{etc,logs}
+# (bind-mounted into the container). Nothing the user cares about lives
+# inside the image, so a `docker compose down && docker image rm ...` is
+# safe — config, telemetry history, and per-inverter overrides all stay
+# on the host filesystem.
+#
+# Authentication: leave APS_WEBUI_PASSWORD unset for open-LAN mode (default),
+# or export it before `docker compose up -d` to gate the Config tab + serial
+# views. See README §Security.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Daemon ────────────────────────────────────────────────────────────────
+  # Polls every inverter via the Sonoff dongle every 30 s, decodes telemetry
+  # into JSONL, optionally publishes to MQTT for Home Assistant. Needs raw
+  # USB-device access to the dongle.
+  aps-unified:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: apsystems-bridge:local
+    container_name: aps-unified
+    restart: unless-stopped
+    command: ["python3", "/opt/aps/host/aps_unified_daemon.py"]
+    environment:
+      # TZ controls timestamp formatting in log lines + the daily-roll-over
+      # boundary for telemetry JSONL files. Override per install.
+      - TZ=${TZ:-Europe/Paris}
+    devices:
+      # The Sonoff ZBDongle-P typically appears as /dev/ttyUSB0. If you have
+      # multiple USB-serial adapters use a stable /dev/serial/by-id/* path:
+      #   - "/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_…:/dev/ttyUSB0"
+      - "${APS_SERIAL:-/dev/ttyUSB0}:/dev/ttyUSB0"
+    volumes:
+      # Bind-mount the existing host state directories AT THE SAME PATHS used
+      # by the source code — no env-var indirection, no path rewriting. A
+      # migration from bare-metal systemd is a no-op: stop the old units,
+      # `compose up -d`, and the daemon sees the same files in the same place.
+      - /opt/aps/etc:/opt/aps/etc
+      - /opt/aps/logs:/opt/aps/logs
+    # Cap container logs so a stuck container can't fill the SD card on a Pi.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── Web UI ────────────────────────────────────────────────────────────────
+  # stdlib http.server. Reads the same /opt/aps/etc + /opt/aps/logs files as
+  # the daemon; no IPC between containers needed. Publishes :8088 on the host.
+  aps-webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: apsystems-bridge:local
+    container_name: aps-webui
+    restart: unless-stopped
+    command: ["python3", "/opt/aps/host/webui/server.py"]
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      # Set APS_WEBUI_PASSWORD to enable the optional session-cookie gate.
+      # Unset → open mode (current behavior). When set, Config tab requires
+      # login; telemetry tabs (Now/Today/History) stay public.
+      - APS_WEBUI_PASSWORD=${APS_WEBUI_PASSWORD:-}
+    depends_on:
+      - aps-unified
+    volumes:
+      - /opt/aps/etc:/opt/aps/etc
+      - /opt/aps/logs:/opt/aps/logs
+    ports:
+      # Override APS_WEB_PORT in your shell or .env to publish on a different
+      # host port. The container always listens on 8088 internally.
+      - "${APS_WEB_PORT:-8088}:8088"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+# No named volumes — everything important lives on the host filesystem
+# under /opt/aps/{etc,logs}, fully transparent to the operator and
+# inspectable / backup-able without docker tooling.

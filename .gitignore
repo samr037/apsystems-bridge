@@ -1,0 +1,63 @@
+# Build artifacts
+firmware/build/
+firmware/firmware.hex
+firmware/*.hex
+firmware/_local/
+firmware/_stub_includes/
+firmware/ti_drivers_config.c
+firmware/ti_drivers_config.h
+firmware/*_generated.*
+*.o
+*.elf
+*.bin
+*.map
+*.lst
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets — never commit
+host/secrets.py
+host/.env
+host/_local/
+.env
+*.local
+
+# On-air captures: never commit. They contain real on-air identifiers
+# from the local install. Keep them locally for debugging if needed.
+captures/
+*.pcap
+*.pcap.gz
+
+# kadzsol firmware redistribution avoidance — CC BY-NC-SA 3.0 firmware
+# must never be redistributed via this repo. Canonical source is the
+# kadzsol Discord / Koenkk/zigbee2mqtt#4221.
+cc2531-fw/
+
+# Telemetry logs from local runs (when developing on a workstation)
+logs/
+
+# Dev screenshots — commit only intentional, scrubbed shots to docs/screenshots/
+/*.png
+.playwright-mcp/
+
+# Claude / agent state — never commit
+.claude/
+
+# Local environment files — sanitization removed .env.example; the
+# project no longer ships an env template (use the web UI for config).
+.env*

@@ -1,0 +1,56 @@
+# Deploy the /flasher static site to GitHub Pages.
+#
+# Prerequisites (set once, in the repo's web UI):
+#   Settings → Pages → Source: "GitHub Actions"
+#   The repo must be PUBLIC, or on a paid plan — free private repos cannot host
+#   GitHub Pages. The workflow will still run on private free repos, but the
+#   `deploy` step will fail when Pages isn't enabled for the environment.
+#
+# The flasher is a pure static folder (HTML + JS + JSON), so the "build" job
+# just packages it — no npm, no bundler, no build step.
+
+name: Deploy flasher to Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'flasher/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; don't cancel an in-flight deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact (flasher/)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./flasher
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

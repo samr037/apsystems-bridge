@@ -1,0 +1,16 @@
+[Unit]
+Description=APS local web UI (stdlib http.server)
+After=network-online.target aps-unified.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/aps/host/webui/server.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+Environment=APS_WEB_PORT=8088
+
+[Install]
+WantedBy=multi-user.target
