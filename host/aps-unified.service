@@ -1,0 +1,15 @@
+[Unit]
+Description=APS unified daemon — Sonoff CC2652P polls all inverters
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/aps/host/aps_unified_daemon.py
+Restart=always
+RestartSec=4
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

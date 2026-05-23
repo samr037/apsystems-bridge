@@ -1,0 +1,30 @@
+name: APsystems Open Bridge
+version: "0.2.0"
+slug: apsystems_bridge
+description: >-
+  Poll APsystems YC600 / DS3 micro-inverters directly over 2.4 GHz and
+  publish telemetry to MQTT — no APsystems ECU or cloud account.
+url: https://github.com/samr037/apsystems-bridge
+arch:
+  - aarch64
+  - amd64
+init: false
+hassio_api: true
+ingress: true
+ingress_port: 8088
+panel_icon: mdi:solar-power
+panel_title: APsystems
+uart: true
+services:
+  - mqtt:want
+ports:
+  "8088/tcp": null
+ports_description:
+  "8088/tcp": >-
+    Optional direct web UI access. Ingress is the default — leave this blank
+    unless you specifically need a host-port exposed (e.g. for a bookmark
+    outside Home Assistant).
+options:
+  serial_device: /dev/ttyUSB0
+schema:
+  serial_device: "str?"

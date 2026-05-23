@@ -1,0 +1,2102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>APS · LOCAL CONTROL</title>
+<link rel="icon" type="image/svg+xml" href="logo-mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+<style>
+  /* ──────────────────────── Theme tokens ──────────────────────── */
+  :root, [data-theme="dark"] {
+    /* Cool electric-green palette — Tesla Powerwall / Sense Home Energy style.
+       Production = green, status accent = cyan, warning = orange (not yellow). */
+    --bg: #0B0D10;
+    --bg-grad-a: #14181E;
+    --bg-grad-b: #0B0D10;
+    --panel: #15181C;
+    --panel-raised: #1B1F24;
+    --tile: #15181C;
+    --line: #262B31;
+    --line-soft: #1F2329;
+    --ink: #E5E7EB;
+    --ink-dim: #C9CDD4;
+    --dim: #8B939B;
+    --phos: #22C55E;
+    --phos-glow: rgba(34, 197, 94, 0.22);
+    --solar: #22C55E;
+    --solar-glow: rgba(34, 197, 94, 0.22);
+    --amber: #FB923C;
+    --error: #F87171;
+    --grid: #1F2329;
+    --selection: var(--phos);
+    --selection-ink: #0B0D10;
+    --shadow: 0 1px 0 #0006, 0 0 0 1px var(--line);
+    --backdrop: rgba(8, 10, 12, 0.78);
+  }
+  [data-theme="light"] {
+    /* Cool neutral light theme — no warm cream, no brown. */
+    --bg: #FAFAFA;
+    --bg-grad-a: #F4F4F5;
+    --bg-grad-b: #FAFAFA;
+    --panel: #FFFFFF;
+    --panel-raised: #F9FAFB;
+    --tile: #F9FAFB;
+    --line: #E4E4E7;
+    --line-soft: #F1F1F2;
+    --ink: #18181B;
+    --ink-dim: #3F3F46;
+    --dim: #71717A;
+    --phos: #15843A;
+    --phos-glow: rgba(21, 132, 58, 0.18);
+    --solar: #15843A;
+    --solar-glow: rgba(21, 132, 58, 0.18);
+    --amber: #C2410C;
+    --error: #B91C1C;
+    --grid: #E4E4E7;
+    --selection: var(--phos);
+    --selection-ink: #FFFFFF;
+    --shadow: 0 1px 2px #00000010, 0 0 0 1px var(--line);
+    --backdrop: rgba(255, 255, 255, 0.84);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; }
+  html { transition: background-color 0.25s ease; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "tnum" 1, "kern" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(ellipse at top, var(--bg-grad-a) 0%, transparent 55%),
+      radial-gradient(at 100% 100%, var(--bg-grad-b) 0%, transparent 60%);
+    min-height: 100vh;
+    transition: background-color 0.25s ease, color 0.2s ease;
+  }
+  ::selection { background: var(--selection); color: var(--selection-ink); }
+  [x-cloak] { display: none !important; }
+  /* Inherit colour transitions on the major surfaces */
+  .card, .vital, .chart-card, .ptile, table.config, input, button.btn,
+  nav.tabs, .vitals { transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease; }
+
+  /* ──────────────────────── Header ──────────────────────── */
+  header.bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: 0.95rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--bg-grad-a) 0%, transparent 100%);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  .brand { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; }
+  .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; letter-spacing: 0.08em; font-size: 0.94rem;
+    color: var(--ink);
+    display: inline-flex; align-items: center; gap: 0.55rem;
+  }
+  .logo::before {
+    content: ""; width: 10px; height: 10px;
+    background: var(--solar);
+    box-shadow: 0 0 12px var(--solar-glow);
+    border-radius: 1px;
+    transform: rotate(45deg);
+  }
+  .brand .sub {
+    font-size: 0.78rem; color: var(--dim);
+    letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  .header-right {
+    display: flex; align-items: center; gap: 1.2rem;
+  }
+  .theme-toggle {
+    background: none; border: 1px solid var(--line);
+    color: var(--dim); cursor: pointer;
+    width: 40px; height: 40px;    /* min 40px for thumbs */
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; border-radius: 4px; flex-shrink: 0;
+    transition: color 0.2s, border-color 0.2s, transform 0.3s;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--ink-dim); }
+  .theme-toggle:active { transform: scale(0.92); }
+  .theme-toggle svg { width: 16px; height: 16px; }
+  .live {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+    color: var(--phos); letter-spacing: 0.05em;
+  }
+  .live .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phos); box-shadow: 0 0 8px var(--phos);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .stale .dot { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .stale { color: var(--amber); }
+
+  /* ──────────────────────── Tabs ──────────────────────── */
+  nav.tabs {
+    display: flex; gap: 0;
+    padding: 0 1.5rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    overflow-x: auto;
+  }
+  nav.tabs button {
+    background: none; border: 0;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace; text-transform: lowercase;
+    font-size: 0.84rem; padding: 0.85rem 1.1rem;
+    cursor: pointer; letter-spacing: 0.05em;
+    position: relative; transition: color 0.15s;
+    white-space: nowrap;
+  }
+  /* Narrow phones: tighten padding so all 4 tabs fit without scrolling */
+  @media (max-width: 420px) {
+    nav.tabs { padding: 0 0.6rem; }
+    nav.tabs button { padding: 0.85rem 0.6rem; font-size: 0.78rem; }
+    nav.tabs button.active::after { left: 0.6rem; right: 0.6rem; }
+  }
+  nav.tabs button:hover { color: var(--ink-dim); }
+  nav.tabs button.active { color: var(--ink); }
+  nav.tabs button.active::after {
+    content: ""; position: absolute;
+    left: 1.1rem; right: 1.1rem; bottom: -1px;
+    height: 2px; background: var(--phos);
+    box-shadow: 0 0 8px var(--phos-glow);
+    animation: tabbar-in 0.32s ease;
+  }
+  @keyframes tabbar-in {
+    from { transform: scaleX(0); opacity: 0; }
+    to   { transform: scaleX(1); opacity: 1; }
+  }
+
+  /* ──────────────────────── Vital bar ──────────────────────── */
+  .vitals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.6rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .vital { background: var(--panel); padding: 0.7rem 0.9rem 0.75rem;
+           display: flex; flex-direction: column; gap: 0.18rem;
+           border: 1px solid var(--line); border-radius: 12px; }
+  .vital .label {
+    font-size: 0.62rem; font-weight: 500;
+    letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase;
+  }
+  .vital .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(1.25rem, 2.6vw, 1.55rem);
+    font-weight: 500; color: var(--ink); line-height: 1;
+    transition: opacity 0.18s ease;
+  }
+  .vital .num.phos { color: var(--phos); text-shadow: 0 0 22px var(--phos-glow); }
+  .vital .num.solar { color: var(--solar); }
+  .vital .unit {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+    color: var(--dim); margin-left: 0.3em; font-weight: 400;
+  }
+  /* Subtle flash on value change */
+  .num.flash { animation: flash 0.7s ease; }
+  @keyframes flash {
+    0%   { opacity: 0.35; }
+    25%  { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  /* ──────────────────────── Main grid ──────────────────────── */
+  main {
+    padding: 1.5rem; display: grid; gap: 1.2rem;
+    max-width: 1400px; margin: 0 auto;
+  }
+  @media (min-width: 1100px) { main { padding: 1.2rem 1.8rem; } }
+  .tab-content { animation: fade-in 0.32s ease; }
+  /* Now-tab grid: 1-up on mobile, 2-up on tablet, 3-up on desktop —
+     keeps everything in one viewport on a typical 1440×900+ screen. */
+  .now-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 0.9rem;
+  }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ──────────────────────── Inverter card ──────────────────────── */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 0.85rem 1rem 1rem;
+    box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+    animation: card-in 0.4s ease backwards;
+  }
+  /* Subtle amber glow on the top edge to evoke the Heliostat sun ring */
+  .card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg,
+      transparent 0%, var(--solar) 30%, var(--solar) 70%, transparent 100%);
+    opacity: 0.55;
+  }
+  .card.dead::before  { background: var(--error); opacity: 0.9; }
+  .card.stale-card::before { background: var(--amber); opacity: 0.8; }
+  .card:nth-child(1) { animation-delay: 0.04s; }
+  .card:nth-child(2) { animation-delay: 0.10s; }
+  .card:nth-child(3) { animation-delay: 0.16s; }
+  .card:nth-child(4) { animation-delay: 0.22s; }
+  .card:nth-child(5) { animation-delay: 0.28s; }
+  @keyframes card-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card.dead { opacity: 0.92; }
+  .card-head {
+    display: flex; align-items: baseline;
+    gap: 0.7rem; flex-wrap: wrap;
+    margin-bottom: 0.55rem; padding-bottom: 0.5rem;
+    border-bottom: 1px dashed var(--line);
+  }
+  .card-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.05rem; font-weight: 700;
+    color: var(--ink); letter-spacing: 0.04em;
+  }
+  .card-serial {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+    color: var(--dim); letter-spacing: 0.05em;
+  }
+  .card-tag {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+    letter-spacing: 0.08em; padding: 0.18rem 0.55rem;
+    border: 1px solid var(--line); color: var(--ink-dim);
+    text-transform: uppercase; border-radius: 999px;
+  }
+  .card-tag.live  { color: var(--phos); border-color: var(--phos); }
+  .card-tag.stale { color: var(--amber); border-color: var(--amber); }
+  .card-tag.dead  { color: var(--error); border-color: var(--error); }
+
+  .card-body { display: grid; gap: 0.8rem; grid-template-columns: 1fr; }
+  @media (min-width: 720px) {
+    /* Side-by-side on tablets+, but cards in now-grid are narrower
+       (340px min) so we stay single-column inside each card. */
+    .card-body { grid-template-columns: 1fr; }
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 0.4rem 0.6rem; align-content: start;
+  }
+  .stat { display: flex; flex-direction: column; gap: 0.1rem; }
+  .stat .label {
+    font-size: 0.58rem; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.12em; font-weight: 500;
+  }
+  .stat .v {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;
+    font-weight: 500; color: var(--ink); line-height: 1.1;
+    transition: opacity 0.18s ease;
+  }
+  .stat .v .u { font-size: 0.68rem; color: var(--dim); margin-left: 0.15em; font-weight: 400; }
+  .stat .v.lg { font-size: 1.6rem; color: var(--solar); text-shadow: 0 0 14px var(--solar-glow); }
+  .stat .v.solar { color: var(--solar); }
+
+  /* Panel tiles — compact landscape. Column count is set inline per card
+     (data-cols on .panels) so 4 panels render 2×2, 6 panels 3×2, 8 panels
+     4×2 — always 2 rows max so card height stays predictable across YC600
+     (2p), QS1 (4p), DS3 (2p), and Hoymiles HMS-1600-4T (4p) / HMS-2000-6T (6p). */
+  .panels {
+    display: grid;
+    gap: 0.4rem; align-content: start;
+    grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  }
+  .ptile {
+    position: relative; min-height: 86px;
+    background: var(--tile);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    padding: 0.5rem 0.6rem;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .ptile .fill {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(180deg, var(--solar-glow) 0%, transparent 100%);
+    border-top: 1px solid var(--solar);
+    transition: height 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+    pointer-events: none;
+  }
+  .ptile .fill::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(
+      0deg, transparent 0 14px, rgba(0,0,0,0.18) 14px 15px);
+    pointer-events: none;
+  }
+  [data-theme="light"] .ptile .fill::before {
+    background-image: repeating-linear-gradient(
+      0deg, transparent 0 14px, rgba(0,0,0,0.06) 14px 15px);
+  }
+  .ptile .pname {
+    position: relative; z-index: 1;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; color: var(--dim);
+  }
+  .ptile .pwr {
+    position: relative; z-index: 1;
+    font-family: 'JetBrains Mono', monospace; font-weight: 500;
+    font-size: 1.05rem; line-height: 1; color: var(--solar);
+  }
+  .ptile .pwr .u { font-size: 0.7rem; color: var(--dim); margin-left: 0.15em; font-weight: 400; }
+  .ptile .sub {
+    position: relative; z-index: 1;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+    color: var(--ink-dim); line-height: 1.4;
+  }
+  .ptile .sub .dim { color: var(--dim); }
+
+  .card-foot {
+    margin-top: 0.6rem; padding-top: 0.5rem;
+    border-top: 1px dashed var(--line);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--dim);
+  }
+  .card-foot strong { color: var(--ink); font-weight: 500; }
+  .card.dead .reason {
+    padding: 0.8rem 0;
+    font-family: 'JetBrains Mono', monospace; color: var(--ink-dim);
+    font-size: 0.9rem; line-height: 1.5;
+  }
+  .card.dead .reason b { color: var(--error); }
+
+  /* ──────────────────────── Charts ──────────────────────── */
+  .chart-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 16px; padding: 1.3rem 1.4rem; box-shadow: var(--shadow);
+  }
+  .chart-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;
+  }
+  .chart-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem; font-weight: 500;
+    letter-spacing: 0.04em; color: var(--ink);
+  }
+  .chart-hint {
+    font-size: 0.78rem; color: var(--dim);
+    letter-spacing: 0; line-height: 1.5;
+  }
+  .chart-wrap { position: relative; height: 320px; }
+
+  /* ──────────────────────── Forms / tables ──────────────────────── */
+  table.config {
+    width: 100%; border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;
+  }
+  table.config th, table.config td {
+    text-align: left; padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  table.config th {
+    color: var(--dim); font-weight: 500; text-transform: uppercase;
+    font-size: 0.7rem; letter-spacing: 0.16em;
+  }
+  table.config tbody tr {
+    transition: background-color 0.2s ease;
+  }
+  table.config tbody tr:hover { background-color: var(--line-soft); }
+  table.config tbody tr.inv-disabled td { opacity: 0.45; }
+  table.config tbody tr.inv-disabled td:last-child,
+  table.config tbody tr.inv-disabled td:nth-last-child(2) { opacity: 1; }
+  table.config td { color: var(--ink); }
+  table.config td.muted { color: var(--dim); }
+
+  .pill {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+    border: 1px solid var(--line); padding: 0.15rem 0.5rem;
+    color: var(--ink-dim); letter-spacing: 0.05em;
+    display: inline-block;
+  }
+  .pill.solar { color: var(--solar); border-color: var(--solar); }
+  .pill.phos  { color: var(--phos); border-color: var(--phos); }
+  .pill.err   { color: var(--error); border-color: var(--error); }
+
+  .meta {
+    margin-top: 1.5rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+    color: var(--dim);
+    display: grid; gap: 0.4rem;
+    grid-template-columns: max-content 1fr; column-gap: 1.2rem;
+  }
+  .meta .k { color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.7rem; }
+  .meta .val { color: var(--ink); }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.7rem 1.2rem;
+    margin-top: 1.1rem; align-items: center;
+  }
+  .form-grid label {
+    font-size: 0.85rem; color: var(--ink-dim);
+    font-weight: 500;
+  }
+  .form-grid input[type=text],
+  .form-grid input[type=password],
+  .form-grid input[type=number],
+  .form-grid select {
+    background: var(--panel-raised);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;
+    padding: 0.45rem 0.65rem;
+    width: 100%; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .form-grid input:focus, .form-grid select:focus {
+    outline: none; border-color: var(--phos);
+    box-shadow: 0 0 0 1px var(--phos-glow);
+  }
+  .form-checkbox { display: flex; align-items: center; gap: 0.6rem; }
+  .form-checkbox input { width: 16px; height: 16px; accent-color: var(--phos); }
+  .form-checkbox label { color: var(--ink); font-family: 'JetBrains Mono', monospace; font-size: 0.86rem; }
+
+  button.btn {
+    background: transparent; color: var(--solar);
+    border: 1px solid var(--solar);
+    padding: 0.55rem 1.1rem; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    cursor: pointer; transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { background: var(--solar-glow); box-shadow: 0 0 16px var(--solar-glow); }
+  button.btn:active { transform: scale(0.97); }
+  button.btn[disabled] { color: var(--dim); border-color: var(--line); cursor: not-allowed; box-shadow: none; }
+  button.btn.ghost { color: var(--ink-dim); border-color: var(--line); }
+  button.btn.ghost:hover { background: var(--line-soft); color: var(--ink); box-shadow: none; }
+  button.btn.warn { color: var(--amber); border-color: var(--amber); }
+  button.btn.warn:hover { background: rgba(251, 146, 60, 0.12); box-shadow: 0 0 14px rgba(251, 146, 60, 0.20); }
+  button.btn.danger { color: var(--error); border-color: var(--error); }
+  button.btn.danger:hover { background: rgba(248, 113, 113, 0.12); }
+  button.btn.sm { padding: 0.42rem 0.7rem; font-size: 0.74rem; min-height: 32px; }
+
+  /* Narrow phones: card heads wrap, header brand stacks tighter */
+  @media (max-width: 480px) {
+    header.bar { padding: 0.7rem 0.9rem; }
+    .brand { gap: 0.4rem; }
+    .brand .sub { width: 100%; font-size: 0.72rem; }
+    main { padding: 1rem; }
+    .card, .chart-card { padding: 1rem 1.1rem; }
+    .chart-head { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .chart-head .chart-hint { font-size: 0.66rem; }
+    /* Config table: collapse to label-stacked rows on narrow */
+    table.config th, table.config td { padding: 0.7rem 0.6rem; font-size: 0.78rem; }
+    .row-actions { flex-wrap: wrap; }
+  }
+
+  .save-row {
+    display: flex; gap: 1rem; align-items: center;
+    margin-top: 1.1rem; padding-top: 1.1rem;
+    border-top: 1px dashed var(--line);
+    flex-wrap: wrap;
+  }
+  .save-status {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+    color: var(--dim); letter-spacing: 0.04em;
+  }
+  .save-status.ok { color: var(--phos); }
+  .save-status.err { color: var(--error); }
+
+  /* ──────────────────────── Modal ──────────────────────── */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: var(--backdrop);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+    animation: modal-bg 0.2s ease;
+  }
+  @keyframes modal-bg { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: 0 30px 60px #00000060;
+    max-width: 540px; width: 100%;
+    max-height: 92vh; overflow-y: auto;
+    padding: 1.5rem 1.6rem;
+    animation: modal-in 0.28s cubic-bezier(.2,.9,.2,1);
+  }
+  @keyframes modal-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modal h3 {
+    margin: 0 0 0.4rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem; letter-spacing: 0.04em;
+    color: var(--ink); font-weight: 700;
+  }
+  .modal-sub {
+    font-size: 0.82rem; color: var(--dim);
+    margin-bottom: 1.1rem; line-height: 1.5;
+  }
+
+  /* Guide list */
+  .guide ol {
+    margin: 0; padding: 0; list-style: none;
+    display: grid; gap: 0.65rem;
+  }
+  .guide li {
+    display: grid; grid-template-columns: 28px 1fr; gap: 0.6rem;
+    font-size: 0.86rem; color: var(--ink-dim);
+    line-height: 1.5;
+  }
+  .guide li .step {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+    background: var(--line-soft); color: var(--phos);
+    border: 1px solid var(--phos);
+    width: 24px; height: 24px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .guide li code {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+    background: var(--panel-raised); padding: 1px 5px;
+    border: 1px solid var(--line); color: var(--ink);
+  }
+
+  /* ──────────────────────── Misc ──────────────────────── */
+  .empty {
+    text-align: center; padding: 4rem 1rem;
+    color: var(--dim); font-family: 'JetBrains Mono', monospace;
+  }
+  footer.fn {
+    text-align: center; padding: 2.5rem 1rem 2rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+    color: var(--dim); letter-spacing: 0.08em;
+  }
+  footer.fn a {
+    color: var(--ink-dim); text-decoration: none;
+    border-bottom: 1px dashed var(--line);
+  }
+  /* Standalone boxed settings panel. Lifts each Config section visually
+     out of the parent chart-card so the boundaries are unmistakable. */
+  section.sub-card {
+    margin-top: 1.2rem;
+    padding: 1rem 1.2rem 1.1rem;
+    background: var(--panel-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    position: relative;
+  }
+  section.sub-card > .chart-head { margin-bottom: 0.6rem; align-items: center; }
+  section.sub-card > .chart-head > .chart-title {
+    padding-left: 0.7rem;
+    border-left: 3px solid var(--solar);
+    line-height: 1.1;
+  }
+  /* Slightly stronger separator between adjacent sub-cards too —
+     a subtle gap keeps it from feeling like one wall of boxes. */
+  section.sub-card + section.sub-card { margin-top: 0.9rem; }
+  .row-actions {
+    display: flex; gap: 0.4rem; justify-content: flex-end;
+  }
+</style>
+</head>
+<body x-data="aps()" x-init="boot()" x-cloak>
+
+  <header class="bar">
+    <div class="brand">
+      <span class="logo">APS · LOCAL CONTROL</span>
+    </div>
+    <div class="header-right">
+      <!-- Auth status pill: hidden in open mode, shown when password is set -->
+      <button class="btn sm ghost"
+              x-show="auth.required && auth.authenticated"
+              @click="logout()"
+              style="font-size:0.72rem; padding:0.25rem 0.6rem"
+              title="End your session — read-only surfaces stay accessible.">
+        logout
+      </button>
+      <button class="btn sm"
+              x-show="auth.required && !auth.authenticated"
+              @click="modal = 'login'"
+              style="font-size:0.72rem; padding:0.25rem 0.6rem"
+              title="Sign in to access Config tab.">
+        login
+      </button>
+      <button class="theme-toggle"
+              :title="theme === 'dark' ? 'switch to light theme' : 'switch to dark theme'"
+              @click="toggleTheme()">
+        <!-- moon when dark, sun when light -->
+        <svg x-show="theme === 'dark'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>
+        </svg>
+        <svg x-show="theme === 'light'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.5"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.42-1.42"/>
+        </svg>
+      </button>
+      <div class="live" :class="{ stale: ageWarning }">
+        <span class="dot"></span>
+        <span x-text="liveLabel"></span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <template x-for="t in tabs" :key="t">
+      <button :class="{ active: tab === t }" @click="switchTab(t)" x-text="t"></button>
+    </template>
+  </nav>
+
+  <section class="vitals">
+    <div class="vital">
+      <span class="label">total · now</span>
+      <div class="num phos" :class="{ flash: flashes.power }">
+        <span x-text="fmt(snapshot.total_power_W || 0, 0)"></span><span class="unit">W</span>
+      </div>
+    </div>
+    <div class="vital">
+      <span class="label">energy · today</span>
+      <div class="num solar" :class="{ flash: flashes.energy }">
+        <span x-text="fmt(snapshot.total_energy_today_Wh || 0, 1)"></span><span class="unit">Wh</span>
+      </div>
+    </div>
+    <div class="vital">
+      <span class="label">inverters live</span>
+      <div class="num" :class="{ flash: flashes.live }">
+        <span x-text="snapshot.live_count || 0"></span><span class="unit" x-text="'/ ' + (snapshot.inverters?.length || 0)"></span>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <!-- ───── NOW ───── -->
+    <template x-if="tab === 'now'">
+      <div class="tab-content now-grid">
+        <template x-for="inv in snapshot.inverters" :key="inv.name">
+          <article class="card"
+                   :class="{ dead: inv.status === 'no_data', 'stale-card': inv.status === 'stale' }">
+            <header class="card-head">
+              <div class="card-name" x-text="(inv.label || inv.name).toUpperCase()"></div>
+              <div class="card-serial">
+                <span x-show="inv.label && inv.label !== inv.name"
+                      style="opacity:0.7"
+                      x-text="inv.name"></span>
+              </div>
+              <span class="card-tag"
+                    :class="{
+                      live: inv.status === 'live',
+                      stale: inv.status === 'stale',
+                      dead: inv.status === 'no_data'
+                    }"
+                    x-text="
+                      inv.status === 'no_data' ? 'NO DATA' :
+                      inv.status === 'stale' ? 'STALE' : 'LIVE'
+                    "></span>
+            </header>
+
+            <div class="card-body" x-show="inv.status !== 'no_data'">
+              <div class="stat-grid">
+                <div class="stat">
+                  <span class="label">power now</span>
+                  <span class="v lg">
+                    <span x-text="fmt(inv.instant_power_W, 0)"></span><span class="u">W</span>
+                  </span>
+                </div>
+                <div class="stat">
+                  <span class="label">today</span>
+                  <span class="v solar">
+                    <span x-text="fmt(inv.total_energy_today_Wh, 1)"></span><span class="u">Wh</span>
+                  </span>
+                </div>
+                <div class="stat">
+                  <span class="label">ac mains</span>
+                  <span class="v">
+                    <span x-text="fmt(inv.ac_voltage_V, 1)"></span><span class="u">V</span>
+                  </span>
+                </div>
+                <div class="stat">
+                  <span class="label">frequency</span>
+                  <span class="v">
+                    <span x-text="fmt(inv.ac_freq_Hz, 2)"></span><span class="u">Hz</span>
+                  </span>
+                </div>
+                <div class="stat">
+                  <span class="label">temperature</span>
+                  <span class="v">
+                    <span x-text="fmt(inv.temperature_C, 1)"></span><span class="u">°C</span>
+                  </span>
+                </div>
+                <div class="stat">
+                  <span class="label">type</span>
+                  <span class="v" x-text="inv.type || '—'"></span>
+                </div>
+              </div>
+
+              <div class="panels" :style="`--cols: ${panelCols(inv.panels?.length || 2)}`">
+                <template x-for="(p, i) in inv.panels" :key="i">
+                  <div class="ptile">
+                    <div class="fill"
+                         :style="`height: ${Math.max(0, Math.min(95, (p.instant_power_W / panelMax(inv)) * 100))}%`"></div>
+                    <div class="pname"
+                         x-text="p.label || ('PANEL ' + (i + 1))"
+                         :title="p.label ? ('Panel ' + (i + 1) + ' — ' + p.label) : ('Panel ' + (i + 1))"></div>
+                    <div class="pwr">
+                      <span x-text="fmt(p.instant_power_W, 0)"></span><span class="u">W</span>
+                    </div>
+                    <div class="sub">
+                      <div><span class="dim">V</span> <span x-text="fmt(p.dc_voltage_V, 1)"></span> · <span class="dim">I</span> <span x-text="fmt(p.dc_current_A, 2)"></span></div>
+                      <div><span class="dim">today</span> <span x-text="fmt(p.energy_today_Wh, 1)"></span> Wh</div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="card-body" x-show="inv.status === 'no_data'">
+              <div class="reason">
+                <b>NO DATA</b> · <span x-text="inv.reason"></span>
+              </div>
+            </div>
+
+            <footer class="card-foot" x-show="inv.status !== 'no_data'">
+              <span>last poll <strong x-text="ago(inv.last_poll_age_s)"></strong> ago</span>
+              <span x-show="serialToAddr(inv.name) !== '—'">addr <strong x-text="serialToAddr(inv.name)"></strong></span>
+              <button class="btn sm ghost"
+                      x-show="features.commands_enabled"
+                      style="margin-left:auto; font-size:0.68rem; padding:0.18rem 0.5rem"
+                      @click="cmdExpanded[inv.name] = !cmdExpanded[inv.name]"
+                      x-text="cmdExpanded[inv.name] ? '× close' : '⋯ commands'"></button>
+            </footer>
+
+            <!-- Per-inverter command row: throttle + reboot. Hidden by default
+                 (cmdExpanded[name]) — toggled from the footer "⋯ commands" link
+                 to avoid eating vertical space on the default view. -->
+            <div class="card-actions"
+                 x-show="inv.status !== 'no_data' && cmdExpanded[inv.name]"
+                 style="display:flex; gap:0.4rem; align-items:center;
+                        padding:0.45rem 0 0; flex-wrap:wrap;
+                        border-top:1px dashed var(--line); margin-top:0.45rem;">
+              <label style="font-size:0.7rem; opacity:0.8; min-width:4.5rem">
+                max <span class="num" x-text="cmdWatts[inv.name] || powerCeiling(inv.type)"></span> W
+              </label>
+              <input type="range" :min="powerFloor(inv.type)"
+                                  :max="powerCeiling(inv.type)" step="10"
+                     style="flex:1; min-width:6rem"
+                     x-model.number="cmdWatts[inv.name]"
+                     :value="cmdWatts[inv.name] || powerCeiling(inv.type)" />
+              <button class="btn sm" @click="setMaxPower(inv)"
+                      :disabled="!cmdWatts[inv.name]">apply</button>
+              <button class="btn sm warn" @click="rebootInverter(inv)"
+                      title="Soft-reboot via FBFB…A6FEFE">reboot</button>
+            </div>
+            <p class="card-actions" x-show="cmdStatus[inv.name]"
+               x-text="cmdStatus[inv.name]"
+               style="margin:0 1rem 0.9rem; font-size:0.78rem; opacity:0.85"></p>
+          </article>
+        </template>
+
+        <div class="empty" x-show="!snapshot.inverters?.length">awaiting first telemetry…</div>
+      </div>
+    </template>
+
+    <!-- ───── TODAY ───── -->
+    <template x-if="tab === 'today'">
+      <div class="tab-content">
+        <article class="chart-card">
+          <div class="chart-head">
+            <div class="chart-title">power today · per inverter</div>
+            <div class="chart-hint" x-text="todayHint"></div>
+          </div>
+          <div class="chart-wrap"><canvas id="todayChart"></canvas></div>
+        </article>
+      </div>
+    </template>
+
+    <!-- ───── HISTORY ───── -->
+    <template x-if="tab === 'history'">
+      <div class="tab-content">
+        <article class="chart-card">
+          <div class="chart-head">
+            <div class="chart-title">energy · last 7 days</div>
+            <div class="chart-hint">end-of-day cumulative Wh</div>
+          </div>
+          <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
+        </article>
+      </div>
+    </template>
+
+    <!-- ───── CONFIG ───── -->
+    <template x-if="tab === 'config'">
+      <div class="tab-content">
+
+        <!-- ─── Inverter management ─── -->
+        <article class="chart-card">
+          <div class="chart-head">
+            <div class="chart-title">inverters</div>
+            <div style="display:flex; gap:0.6rem">
+              <button class="btn ghost sm" @click="openGuide()">guide</button>
+              <button class="btn sm" @click="openAddInverter()">+ add inverter</button>
+            </div>
+          </div>
+          <table class="config">
+            <thead>
+              <tr><th>label / name</th><th>family</th><th>serial</th><th>short addr</th><th style="text-align:center">poll</th><th></th></tr>
+            </thead>
+            <tbody>
+              <template x-for="(inv, idx) in editInverters" :key="inv.serial">
+                <tr :class="{ 'inv-disabled': inv.enabled === false }">
+                  <td>
+                    <div x-text="inv.label || inv.name" style="font-weight:500"></div>
+                    <div x-show="inv.label && inv.label !== inv.name"
+                         style="font-size:0.7rem; color:var(--dim); margin-top:0.15rem"
+                         x-text="inv.name"></div>
+                  </td>
+                  <td><span class="pill"
+                            :class="{ phos: inv.family==='YC600', solar: inv.family==='QS1', err: inv.family==='DS3' }"
+                            x-text="inv.family"></span></td>
+                  <td><span class="num" x-text="maskSerial(inv.serial)"
+                            :title="'Full serial visible on Edit (treat as a soft credential — do not screenshot)'"></span></td>
+                  <td x-text="inv.short_addr_on_wire ? '0x'+inv.short_addr_on_wire : '—'"></td>
+                  <td style="text-align:center">
+                    <input type="checkbox"
+                           :checked="inv.enabled !== false"
+                           @change="toggleInverter(idx)"
+                           :title="inv.enabled === false ? 'disabled — click to re-enable polling' : 'enabled — click to pause polling'">
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn ghost sm" @click="openEditInverter(idx)">edit</button>
+                      <button class="btn danger sm" @click="deleteInverter(idx)">×</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="!editInverters.length">
+                <td colspan="6" class="muted" style="text-align:center; padding: 1.6rem 1rem">
+                  no inverters yet · use <b>+ add inverter</b> to start
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="meta">
+            <span class="k">ecu id</span><span class="val" x-text="meta.ecu_id"></span>
+            <span class="k">pan id</span><span class="val" x-text="meta.pan_id"></span>
+            <span class="k">channel</span><span class="val" x-text="meta.channel"></span>
+          </div>
+
+          <!-- Live refresh interval -->
+          <section class="sub-card">
+            <div class="chart-head">
+              <div class="chart-title">live refresh</div>
+              <div class="chart-hint" x-text="ui.refreshIntervalLabel"></div>
+            </div>
+            <div class="form-grid" style="margin-top:1rem">
+              <label for="refresh-interval">dashboard auto-refresh</label>
+              <!-- @change + :selected (literal `value=` attrs) instead of
+                   x-model + :value — Alpine evaluates :value AFTER the
+                   browser picks the initial selection, so x-model + :value
+                   leaves the dropdown stuck on the first option until you
+                   touch it. Same fix as the TX-power select below. -->
+              <select id="refresh-interval"
+                      @change="ui.refreshIntervalMs = Number($event.target.value); applyRefreshInterval()">
+                <option value="5000"   :selected="ui.refreshIntervalMs === 5000">every 5 seconds</option>
+                <option value="10000"  :selected="ui.refreshIntervalMs === 10000">every 10 seconds  (default)</option>
+                <option value="30000"  :selected="ui.refreshIntervalMs === 30000">every 30 seconds</option>
+                <option value="60000"  :selected="ui.refreshIntervalMs === 60000">every 1 minute</option>
+                <option value="120000" :selected="ui.refreshIntervalMs === 120000">every 2 minutes</option>
+                <option value="0"      :selected="ui.refreshIntervalMs === 0">manual only</option>
+              </select>
+            </div>
+            <p class="chart-hint" style="margin-top:0.8rem; font-size:0.78rem; opacity:0.7">
+              Browser-local setting (saved in this device's localStorage).
+              Lower values use slightly more network and battery on mobile;
+              higher values feel less live but are easier on shaky links.
+            </p>
+            <div class="save-row">
+              <button class="btn ghost sm" @click="refresh()">refresh now</button>
+            </div>
+          </section>
+
+          <!-- Inverter poll interval (daemon-side) -->
+          <section class="sub-card">
+            <div class="chart-head">
+              <div class="chart-title">inverter poll interval</div>
+              <div class="chart-hint" x-text="`${polling.interval_s}s`"></div>
+            </div>
+            <div class="form-grid" style="margin-top:1rem">
+              <label for="poll-interval">how often the daemon polls inverters</label>
+              <select id="poll-interval"
+                      @change="polling.interval_s = Number($event.target.value); savePolling()">
+                <option value="15"  :selected="polling.interval_s === 15">every 15 seconds  (minimum)</option>
+                <option value="30"  :selected="polling.interval_s === 30">every 30 seconds  (default)</option>
+                <option value="60"  :selected="polling.interval_s === 60">every 1 minute</option>
+                <option value="120" :selected="polling.interval_s === 120">every 2 minutes</option>
+                <option value="300" :selected="polling.interval_s === 300">every 5 minutes</option>
+                <option value="600" :selected="polling.interval_s === 600">every 10 minutes</option>
+              </select>
+            </div>
+            <p class="chart-hint" style="margin-top:0.8rem; font-size:0.78rem; opacity:0.7">
+              How often the bridge polls every inverter and writes telemetry.
+              The 15 s floor is a safety minimum — a full cycle already
+              spends ~2.5 s per inverter on air, so faster would just
+              saturate the 2.4 GHz band. Slower saves RF airtime and log
+              volume at the cost of coarser data.
+            </p>
+            <span class="save-status"
+                  :class="{ ok: pollingSaveOk, err: pollingSaveErr }"
+                  x-text="pollingSaveMessage"></span>
+          </section>
+
+          <!-- Radio config -->
+          <section class="sub-card">
+            <div class="chart-head">
+              <div class="chart-title">radio / tx power</div>
+              <div class="chart-hint"
+                   x-text="`${radio.tx_power_dbm >= 0 ? '+' : ''}${radio.tx_power_dbm} dBm`"></div>
+            </div>
+            <div class="form-grid" style="margin-top:1rem">
+              <label for="tx-power">conducted TX power</label>
+              <select id="tx-power"
+                      @change="radio.tx_power_dbm = Number($event.target.value)">
+                <template x-for="v in (radio.supported_dbm || [])" :key="v">
+                  <option :value="v"
+                          :selected="v === radio.tx_power_dbm"
+                          x-text="(v >= 0 ? '+' : '') + v + ' dBm'
+                                  + (v === 5  ? '  (default)' : '')
+                                  + (v === 6  ? '  (high-PA on)' : '')
+                                  + (v === 20 ? '  (EU SRD max)' : '')">
+                  </option>
+                </template>
+              </select>
+            </div>
+            <p class="chart-hint" style="margin-top:0.9rem" x-text="txPowerHint()"></p>
+            <p class="chart-hint" style="margin-top:0.4rem; font-size:0.78rem; opacity:0.7">
+              EU SRD limit: <b>+20 dBm</b> EIRP &nbsp;·&nbsp;
+              FCC Part 15.247: <b>+30 dBm</b>. Every value here is well within
+              both. Verify local regulations if operating outside EU/US.
+              Higher TX power = better reach to outbuildings, but slightly
+              more interference into other 2.4 GHz devices.
+            </p>
+            <div class="save-row">
+              <button class="btn" @click="saveRadio()" :disabled="radioSaving">
+                <span x-text="radioSaving ? 'saving…' : 'save tx power'"></span>
+              </button>
+              <span class="save-status"
+                    :class="{ ok: radioSaveOk, err: radioSaveErr }"
+                    x-text="radioSaveMessage"></span>
+            </div>
+          </section>
+
+          <!-- Log retention -->
+          <section class="sub-card">
+            <div class="chart-head">
+              <div class="chart-title">logs / retention</div>
+              <div class="chart-hint"
+                   x-text="retention.telemetry_days === 0
+                           ? 'keep forever'
+                           : retention.telemetry_days + ' day' + (retention.telemetry_days === 1 ? '' : 's')"></div>
+            </div>
+            <div class="form-grid" style="margin-top:1rem">
+              <label for="retention-days">telemetry JSONL retention</label>
+              <input id="retention-days" type="number" min="0" max="3650"
+                     x-model.number="retention.telemetry_days">
+            </div>
+            <p class="chart-hint" style="margin-top:0.8rem; font-size:0.82rem">
+              Currently using
+              <b x-text="retention.current_log_mb"></b> MB
+              in <code>/opt/aps/logs/</code>.
+              <span x-show="retention.telemetry_days === 0">
+                Cleanup is <b>disabled</b>; files grow forever.
+              </span>
+              <span x-show="retention.telemetry_days > 0">
+                Files older than
+                <b x-text="retention.telemetry_days + ' days'"></b>
+                will be removed on the next daemon midnight rollover.
+              </span>
+            </p>
+            <p class="chart-hint" style="margin-top:0.4rem; font-size:0.78rem; opacity:0.7">
+              Affects: <code>telemetry-*.jsonl</code> +
+              <code>telemetry-decoded-*.jsonl</code>. The daemon's own
+              event log (<code>unified-daemon.log</code>) is never touched.
+              Set to <code>0</code> to keep everything forever.
+            </p>
+            <div class="save-row">
+              <button class="btn" @click="saveRetention()" :disabled="retentionSaving">
+                <span x-text="retentionSaving ? 'saving…' : 'save retention'"></span>
+              </button>
+              <span class="save-status"
+                    :class="{ ok: retentionSaveOk, err: retentionSaveErr }"
+                    x-text="retentionSaveMessage"></span>
+            </div>
+          </section>
+
+          <!-- Verbose logging -->
+          <section class="sub-card">
+            <div class="chart-head">
+              <div class="chart-title">logging verbosity</div>
+              <div class="chart-hint"
+                   x-text="logging.verbose ? 'verbose' : 'normal'"></div>
+            </div>
+            <div class="form-checkbox" style="margin-top:1rem">
+              <input id="log-verbose" type="checkbox" x-model="logging.verbose"
+                     @change="saveLogging()">
+              <label for="log-verbose">verbose mode (extra [DEBUG] lines in journalctl)</label>
+            </div>
+            <p class="chart-hint" style="margin-top:0.6rem; font-size:0.78rem; opacity:0.7">
+              Adds per-poll tx/rx tracing, retention sweep activity,
+              skipped-when-disabled markers, and other diagnostic
+              detail to <code>journalctl -u aps-unified</code>. Turn
+              on temporarily when debugging a flaky inverter, then off
+              again — verbose mode generates significantly more
+              journal traffic and disk writes.
+            </p>
+            <span class="save-status"
+                  :class="{ ok: loggingSaveOk, err: loggingSaveErr }"
+                  x-text="loggingSaveMessage"></span>
+          </section>
+
+          <!-- Experimental features (commands queue) -->
+          <section class="sub-card">
+            <div class="chart-head">
+              <div class="chart-title">experimental features</div>
+              <div class="chart-hint"
+                   x-text="features.commands_enabled ? 'commands armed' : 'safe defaults'"></div>
+            </div>
+            <div class="form-checkbox" style="margin-top:1rem">
+              <input id="feat-cmd" type="checkbox" x-model="features.commands_enabled"
+                     @change="saveFeatures()">
+              <label for="feat-cmd">enable inverter commands (set max power, soft-reboot)</label>
+            </div>
+            <p class="chart-hint" style="margin-top:0.6rem; font-size:0.78rem; opacity:0.85;
+                                          color: var(--amber)">
+              ⚠ <b>Experimental.</b> The set-power and reboot frames are
+              built per patience4711's MIT-licensed firmware and TX cleanly
+              from our coordinator, but their <b>semantic effect on the
+              inverter is not yet verified</b> on this stack — likely the
+              inverter only accepts state-changing commands from an ECU
+              that completed a full pair handshake (this coordinator reuses
+              an existing ECU identity, which works for polls but may not
+              be enough here). Enabling adds a
+              <code>⋯ commands</code> menu to each card. Frames go on air
+              regardless of whether the inverter honors them. See
+              <code>docs/aps-protocol.md §E.4-E.5</code>.
+            </p>
+            <span class="save-status"
+                  :class="{ ok: featuresSaveOk, err: featuresSaveErr }"
+                  x-text="featuresSaveMessage"></span>
+          </section>
+
+          <!-- MQTT config -->
+          <section class="sub-card">
+            <div class="chart-head">
+              <div class="chart-title">mqtt &amp; home assistant</div>
+              <div class="chart-hint" x-text="mqtt.enabled ? 'enabled' : 'disabled'"></div>
+            </div>
+            <div class="form-checkbox" style="margin-top:1rem">
+              <input id="mqtt-en" type="checkbox" x-model="mqtt.enabled">
+              <label for="mqtt-en">publish decoded telemetry to MQTT</label>
+            </div>
+            <div class="form-grid">
+              <label for="mqtt-host">broker host</label>
+              <input id="mqtt-host" type="text" x-model="mqtt.host" placeholder="mqtt.example.com or 192.168.1.10">
+              <label for="mqtt-port">port</label>
+              <input id="mqtt-port" type="number" x-model.number="mqtt.port" placeholder="1883" min="1" max="65535">
+              <label for="mqtt-user">username</label>
+              <input id="mqtt-user" type="text" x-model="mqtt.username" placeholder="(blank = anonymous)" autocomplete="username">
+              <label for="mqtt-pass">password</label>
+              <input id="mqtt-pass" type="password" x-model="mqtt.password" placeholder="•••" autocomplete="new-password">
+              <label for="mqtt-prefix">discovery prefix</label>
+              <input id="mqtt-prefix" type="text" x-model="mqtt.topic_prefix"
+                     placeholder="homeassistant"
+                     title="HA auto-discovery root — must match the broker's discovery_prefix.">
+              <label for="mqtt-state-prefix">state prefix</label>
+              <input id="mqtt-state-prefix" type="text" x-model="mqtt.state_topic_prefix"
+                     placeholder="apsbridge"
+                     title="Top-level root for the actual telemetry topics (apsbridge/yc600-1/ac_voltage_V, etc.). Decoupled from the HA discovery root so state topics don't masquerade as the vendor namespace.">
+            </div>
+            <p class="chart-hint" style="margin-top:0.4rem; font-size:0.78rem; opacity:0.75">
+              State topics land at <code x-text="(mqtt.state_topic_prefix || 'apsbridge') + '/&lt;inverter&gt;/&lt;metric&gt;'"></code>.
+              Home Assistant discovery configs land at <code x-text="(mqtt.topic_prefix || 'homeassistant') + '/sensor/&lt;uniq&gt;/config'"></code>;
+              the discovery payload references the state topic above, so HA wires
+              them together automatically.
+            </p>
+            <div class="form-checkbox" style="margin-top:1rem">
+              <input id="mqtt-retain" type="checkbox" x-model="mqtt.retain">
+              <label for="mqtt-retain">retain published messages</label>
+            </div>
+            <div class="form-checkbox">
+              <input id="mqtt-ha" type="checkbox" x-model="mqtt.ha_discovery">
+              <label for="mqtt-ha">home assistant auto-discovery</label>
+            </div>
+            <div class="save-row">
+              <button class="btn" @click="saveMqtt()" :disabled="saving">
+                <span x-text="saving ? 'saving…' : 'save mqtt config'"></span>
+              </button>
+              <span class="save-status" :class="{ ok: saveOk, err: saveErr }" x-text="saveMessage"></span>
+            </div>
+          </section>
+        </article>
+      </div>
+    </template>
+  </main>
+
+  <!-- ───── Add / Edit inverter modal ───── -->
+  <div class="modal-backdrop" x-show="modal === 'edit'" x-cloak
+       @click.self="modal = null" @keydown.escape.window="modal = null">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 x-text="invForm.idx === null ? 'add inverter' : 'edit ' + (invForm.original?.label || invForm.original?.name)"></h3>
+      <p class="modal-sub">
+        <b>Label</b> is the human-friendly name shown on cards, in charts and
+        in Home Assistant — spaces and accents OK. The <b>identifier</b> is
+        auto-derived from the label (slug-only) and locked once the inverter
+        exists, so MQTT topics and HA entities stay stable when you rename.
+        Family is auto-detected from the serial prefix
+        (<code>4080</code>→YC600, <code>5010</code>→QS1, <code>7040</code>→DS3).
+      </p>
+      <div class="form-grid">
+        <label for="if-label">label</label>
+        <input id="if-label" type="text" x-model="invForm.label"
+               placeholder="e.g. Garage roof east" maxlength="40"
+               @input="syncNameFromLabel()">
+        <label for="if-name">identifier</label>
+        <input id="if-name" type="text" :value="invForm.name" readonly
+               style="opacity:0.7; cursor:not-allowed"
+               :title="invForm.idx === null
+                  ? 'Auto-derived from the label. Used in MQTT topics and config files.'
+                  : 'Locked — changing the identifier of an existing inverter would break MQTT subscriptions and Home Assistant entities. Edit the label to change the display name only.'">
+        <label for="if-serial">serial</label>
+        <input id="if-serial" type="text" x-model="invForm.serial"
+               placeholder="408000071234" maxlength="12"
+               @input="autoDetectFamily()">
+        <label for="if-family">family</label>
+        <select id="if-family" x-model="invForm.family"
+                @change="syncPanelsToFamily()">
+          <option value="">—</option>
+          <option value="YC600">YC600</option>
+          <option value="QS1">QS1</option>
+          <option value="DS3">DS3</option>
+        </select>
+        <label for="if-short">short addr</label>
+        <input id="if-short" type="text" x-model="invForm.short_addr_on_wire"
+               placeholder="e.g. ABCD (optional)" maxlength="4">
+        <label for="if-calib">throttle calib</label>
+        <input id="if-calib" type="number" x-model.number="invForm.calib"
+               min="-300" max="300" step="1" placeholder="0"
+               title="Signed watt offset added to every set-power command (effective = requested + calib). Tune it to cancel the inverter's throttle drift — e.g. if a 150 W cap settles at ~167 W, set calib to -17.">
+      </div>
+      <p class="chart-hint" style="margin-top:0.4rem; font-size:0.78rem; opacity:0.75">
+        <b>throttle calib</b> — signed watt offset applied to set-power
+        commands (effective = requested + calib). Leave 0 unless the
+        inverter throttles off-target; e.g. a DS3 capped at 150 W settles
+        ~11% high, so calib ≈ −17 brings it on target.
+      </p>
+
+      <!-- Per-panel labels (#34). Optional — leave rows blank to keep
+           generic "PANEL N" display. Row count is auto-seeded from the
+           family (YC600/DS3 = 2, QS1 = 4). -->
+      <div x-show="invForm.panels && invForm.panels.length" style="margin-top:1.2rem">
+        <div style="font-size:0.85rem; font-weight:500; color:var(--ink-dim); margin-bottom:0.4rem">
+          panels <span style="color:var(--dim); font-weight:400">— optional labels for each input</span>
+        </div>
+        <div style="display:grid; grid-template-columns: auto 1fr 1fr; gap:0.4rem 0.7rem; align-items:center;">
+          <template x-for="(p, i) in invForm.panels" :key="i">
+            <template x-if="true">
+              <div style="display:contents">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--dim)"
+                      x-text="'P' + (i + 1)"></span>
+                <input type="text" x-model="invForm.panels[i].label"
+                       placeholder="label (e.g. roof east)" maxlength="40">
+                <input type="text" x-model="invForm.panels[i].serial"
+                       placeholder="panel serial (optional)" maxlength="32">
+              </div>
+            </template>
+          </template>
+        </div>
+      </div>
+
+      <div class="save-row">
+        <button class="btn" @click="saveInverter()" :disabled="!canSaveInverter">
+          <span x-text="invForm.idx === null ? 'add' : 'save'"></span>
+        </button>
+        <button class="btn ghost" @click="modal = null">cancel</button>
+        <span class="save-status" :class="{ err: invForm.error }" x-text="invForm.error || ''"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── Login modal ───── -->
+  <div class="modal-backdrop" x-show="modal === 'login'" x-cloak
+       @click.self="modal = null" @keydown.escape.window="modal = null">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:24rem">
+      <h3>sign in</h3>
+      <p class="modal-sub">
+        Read-only views (Now, Today, History) are always accessible
+        without signing in. Sign in to view and edit Config + send
+        commands.
+      </p>
+      <div class="form-grid">
+        <label for="login-pw">password</label>
+        <input id="login-pw" type="password" x-model="loginForm.password"
+               @keydown.enter="doLogin()" autocomplete="current-password"
+               x-init="$nextTick(() => $el.focus())">
+      </div>
+      <div class="save-row" style="margin-top:1rem">
+        <button class="btn" @click="doLogin()" :disabled="!loginForm.password">
+          sign in
+        </button>
+        <button class="btn ghost" @click="modal = null">cancel</button>
+        <span class="save-status" :class="{ err: loginForm.error }"
+              x-text="loginForm.error || ''"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── First-time guide modal ───── -->
+  <div class="modal-backdrop" x-show="modal === 'guide'" x-cloak
+       @click.self="modal = null" @keydown.escape.window="modal = null">
+    <div class="modal guide">
+      <h3>adding an inverter — quick guide</h3>
+      <p class="modal-sub">
+        Two pieces of info are required and one is optional — the serial is
+        printed on the unit, and the short address can be left blank and
+        filled in later.
+      </p>
+      <ol>
+        <li>
+          <span class="step">1</span>
+          <span>
+            <b>Find the inverter's serial number.</b> It's printed on the side
+            of the unit (12 hex characters). For YC600 it starts with
+            <code>408000</code>; QS1 with <code>501000</code>; DS3 with
+            <code>704000</code>.
+          </span>
+        </li>
+        <li>
+          <span class="step">2</span>
+          <span>
+            <b>Optionally — set the on-air short address.</b> Each inverter
+            has a 2-byte short address (e.g. <code>0xABCD</code>). If you
+            already know it, enter it here; otherwise leave it blank and add
+            it later — polling won't start until it's set.
+          </span>
+        </li>
+        <li>
+          <span class="step">3</span>
+          <span>
+            <b>Click <span class="pill phos">+ add inverter</span></b> and fill
+            the form. Family auto-detects from the serial. The web UI writes
+            <code>/opt/aps/etc/inverters.json</code>; the daemon hot-reloads
+            it within the next 30-second poll cycle and starts trying to
+            reach the new inverter.
+          </span>
+        </li>
+        <li>
+          <span class="step">4</span>
+          <span>
+            <b>Check the NOW tab.</b> If the inverter is paired & responsive,
+            it'll show up <span class="pill phos">LIVE</span> within a cycle.
+            If short addr is missing, you'll see
+            <span class="pill err">NO DATA</span> until you fill it in.
+          </span>
+        </li>
+      </ol>
+      <div class="save-row">
+        <button class="btn" @click="modal = null">got it</button>
+        <button class="btn ghost" @click="modal = null; openAddInverter()">add one now</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="fn">
+    <a href="https://github.com/samr037/apsystems-bridge" target="_blank"
+       rel="noopener">APsystems Open Bridge</a>
+    <span x-show="meta.firmware_version">&nbsp;·&nbsp;firmware <span x-text="meta.firmware_version"></span></span>
+    &nbsp;·&nbsp;<a href="api/status" target="_blank">debug</a>
+  </footer>
+
+<script>
+const FAMILY_BY_PREFIX = { "4080": "YC600", "5010": "QS1", "7040": "DS3" };
+const PANEL_MAX_BY_TYPE = { YC600: 350, QS1: 350, DS3: 400 };
+const KNOWN_ADDR_FALLBACK = {};  // real addresses come from /api/inverters; backstop only
+
+function aps() {
+  return {
+    /* state */
+    theme: localStorage.getItem('aps-theme') || 'dark',
+    tab: 'now',
+    tabs: ['now', 'today', 'history', 'config'],
+    snapshot: { inverters: [], total_power_W: 0, total_energy_today_Wh: 0, live_count: 0 },
+    meta: { inverters: [], pan_id: '—', ecu_id: '', channel: '—', firmware_version: '' },
+    editInverters: [],
+    mqtt: { enabled: false, host: '', port: 1883, username: '', password: '',
+            topic_prefix: 'homeassistant',
+            state_topic_prefix: 'apsbridge',
+            retain: true, ha_discovery: true },
+    radio: { tx_power_dbm: 5,
+             supported_dbm: [-20, -15, -10, -5, 0, 1, 2, 3, 4, 5,
+                             6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] },
+    radioSaving: false, radioSaveOk: false, radioSaveErr: false, radioSaveMessage: '',
+    retention: { telemetry_days: 90, current_log_bytes: 0, current_log_mb: '0' },
+    retentionSaving: false, retentionSaveOk: false, retentionSaveErr: false, retentionSaveMessage: '',
+    logging: { verbose: false },
+    loggingSaveOk: false, loggingSaveErr: false, loggingSaveMessage: '',
+    /* Daemon poll interval — read from /api/polling. Defaults match the
+       server-side DEFAULT_POLL_INTERVAL_S; bounds come from the API. */
+    polling: { interval_s: 30, min_interval_s: 15, max_interval_s: 3600 },
+    pollingSaveOk: false, pollingSaveErr: false, pollingSaveMessage: '',
+    /* Feature flags — read from /api/features. Defaults match the
+       server-side DEFAULT_FEATURES (commands off until the user opts in). */
+    features: { commands_enabled: false },
+    featuresSaveOk: false, featuresSaveErr: false, featuresSaveMessage: '',
+    /* Auth state. `required` reflects whether the server has a password
+       configured (APS_WEBUI_PASSWORD set); `authenticated` is the current
+       session status. Both polled at boot from /api/auth/status. */
+    auth: { required: false, authenticated: true },
+    loginForm: { password: '', error: '' },
+    /* Per-inverter command state for set-power slider + reboot — keyed by
+       inverter name so each card is independent. cmdExpanded toggles the
+       collapsed action row (hidden by default to save vertical space). */
+    cmdWatts: {},
+    cmdStatus: {},
+    cmdExpanded: {},
+    ui: {
+      // Auto-refresh interval (ms). Persisted in localStorage on this device.
+      // 0 = manual only. Default 10s matches the legacy hardcoded behaviour.
+      refreshIntervalMs: parseInt(localStorage.getItem('aps-refresh-ms') || '10000', 10),
+      get refreshIntervalLabel() {
+        const v = this.refreshIntervalMs;
+        if (!v) return 'manual';
+        if (v < 60000) return `${Math.round(v/1000)}s`;
+        return `${Math.round(v/60000)} min`;
+      },
+    },
+    saving: false, saveOk: false, saveErr: false, saveMessage: '',
+    todayChart: null, historyChart: null,
+    pollTimer: null, todayHint: 'all decoded samples',
+    modal: null,
+    invForm: { idx: null, name: '', serial: '', family: '', short_addr_on_wire: '', error: '', original: null },
+    flashes: { power: false, energy: false, live: false },
+    _prev: { power: null, energy: null, live: null },
+
+    /* lifecycle */
+    async boot() {
+      document.documentElement.setAttribute('data-theme', this.theme);
+      // Auth + features are always public; load them first to decide
+      // whether the protected fetches are worth attempting.
+      await Promise.all([this.refreshAuth(), this.refreshFeatures(),
+                          this.refreshConfig()]);
+      const publicOK = [this.refresh()];
+      // Protected fetches: skip if auth is required and we're not logged in.
+      // The Config tab will trigger them on a successful login.
+      if (!this.auth.required || this.auth.authenticated) {
+        publicOK.push(this.refreshInverters(), this.refreshMqtt(),
+                       this.refreshRadio(), this.refreshRetention(),
+                       this.refreshLogging(), this.refreshPolling());
+      }
+      await Promise.all(publicOK);
+      this.applyRefreshInterval();
+    },
+
+    applyRefreshInterval() {
+      if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+      const v = this.ui.refreshIntervalMs;
+      localStorage.setItem('aps-refresh-ms', String(v));
+      if (v > 0) this.pollTimer = setInterval(() => this.refresh(), v);
+    },
+
+    toggleTheme() {
+      this.theme = this.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', this.theme);
+      localStorage.setItem('aps-theme', this.theme);
+      // Re-render charts so axis colours match the new theme
+      this.$nextTick(() => {
+        if (this.tab === 'today')   this.drawToday();
+        if (this.tab === 'history') this.drawHistory();
+      });
+    },
+
+    switchTab(t) {
+      // If switching to Config and we need auth but don't have it,
+      // intercept with the login modal instead of showing an empty tab.
+      if (t === 'config' && this.auth.required && !this.auth.authenticated) {
+        this.modal = 'login';
+        return;
+      }
+      this.tab = t;
+      this.$nextTick(() => {
+        if (t === 'today')   this.drawToday();
+        if (t === 'history') this.drawHistory();
+      });
+    },
+
+    /* fetches */
+    async refresh() {
+      try {
+        const r = await fetch('api/snapshot');
+        const next = await r.json();
+        this.flashOnChange(next);
+        this.snapshot = next;
+        if (this.tab === 'today')   this.drawToday();
+        if (this.tab === 'history') this.drawHistory();
+      } catch (e) { console.warn('refresh fail', e); }
+    },
+    async refreshConfig() {
+      try {
+        const r = await fetch('api/config');
+        this.meta = await r.json();
+      } catch (e) { console.warn('config fail', e); }
+    },
+    async refreshInverters() {
+      try {
+        const r = await fetch('api/inverters');
+        const j = await r.json();
+        this.editInverters = j.inverters || [];
+      } catch (e) { console.warn('inverters fail', e); }
+    },
+    async refreshMqtt() {
+      try {
+        const r = await fetch('api/mqtt');
+        this.mqtt = { ...this.mqtt, ...(await r.json()) };
+      } catch (e) { console.warn('mqtt fetch fail', e); }
+    },
+    async refreshRadio() {
+      try {
+        const r = await fetch('api/radio');
+        const j = await r.json();
+        // Two-step assignment to fix a <select x-model> + <template x-for>
+        // race: if we set tx_power_dbm before supported_dbm options have
+        // rendered, the browser falls back to the first option (-20) because
+        // option value=20 doesn't exist in the DOM yet. Update the list
+        // first, await one render tick, THEN bind the selected value.
+        if (Array.isArray(j.supported_dbm)) this.radio.supported_dbm = j.supported_dbm;
+        await this.$nextTick();
+        if (typeof j.tx_power_dbm === 'number') this.radio.tx_power_dbm = j.tx_power_dbm;
+      } catch (e) { console.warn('radio fetch fail', e); }
+    },
+    async refreshRetention() {
+      try {
+        const r = await fetch('api/retention');
+        const j = await r.json();
+        const bytes = j.current_log_bytes || 0;
+        j.current_log_mb = (bytes / (1024 * 1024)).toFixed(1);
+        this.retention = { ...this.retention, ...j };
+      } catch (e) { console.warn('retention fetch fail', e); }
+    },
+    async refreshLogging() {
+      try {
+        const r = await fetch('api/logging');
+        this.logging = { ...this.logging, ...(await r.json()) };
+      } catch (e) { console.warn('logging fetch fail', e); }
+    },
+    async refreshPolling() {
+      try {
+        const r = await fetch('api/polling');
+        this.polling = { ...this.polling, ...(await r.json()) };
+      } catch (e) { console.warn('polling fetch fail', e); }
+    },
+    async savePolling() {
+      this.pollingSaveOk = this.pollingSaveErr = false;
+      this.pollingSaveMessage = '';
+      try {
+        const r = await fetch('api/polling', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interval_s: this.polling.interval_s }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        this.pollingSaveOk = true;
+        this.pollingSaveMessage = j.note || 'saved.';
+      } catch (e) {
+        this.pollingSaveErr = true;
+        this.pollingSaveMessage = 'save failed · ' + (e.message || e);
+      }
+      setTimeout(() => {
+        this.pollingSaveOk = this.pollingSaveErr = false;
+        this.pollingSaveMessage = '';
+      }, 4000);
+    },
+    async refreshFeatures() {
+      try {
+        const r = await fetch('api/features');
+        this.features = { ...this.features, ...(await r.json()) };
+      } catch (e) { console.warn('features fetch fail', e); }
+    },
+    async refreshAuth() {
+      try {
+        const r = await fetch('api/auth/status');
+        const j = await r.json();
+        this.auth.required = !!j.auth_required;
+        this.auth.authenticated = !!j.authenticated;
+      } catch (e) { console.warn('auth status fail', e); }
+    },
+    async doLogin() {
+      this.loginForm.error = '';
+      try {
+        const r = await fetch('api/auth/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ password: this.loginForm.password }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          this.loginForm.error = j.error || `HTTP ${r.status}`;
+          return;
+        }
+        this.auth.authenticated = true;
+        this.loginForm.password = '';
+        this.modal = null;
+        // Reload the protected datasets now that we're authenticated.
+        await Promise.all([this.refreshInverters(), this.refreshMqtt(),
+                            this.refreshRadio(), this.refreshRetention(),
+                            this.refreshLogging(), this.refreshPolling()]);
+      } catch (e) {
+        this.loginForm.error = e.message || String(e);
+      }
+    },
+    async logout() {
+      try {
+        await fetch('api/auth/logout', { method: 'POST',
+                                          credentials: 'same-origin' });
+      } catch (e) { /* best-effort */ }
+      this.auth.authenticated = false;
+      // Wipe protected-data caches from memory so a screenshot taken
+      // post-logout doesn't leak. Public surfaces stay intact.
+      this.editInverters = [];
+      this.mqtt = { ...this.mqtt, password: '', host: '' };
+    },
+    async saveFeatures() {
+      this.featuresSaveOk = this.featuresSaveErr = false;
+      this.featuresSaveMessage = '';
+      try {
+        const r = await fetch('api/features', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands_enabled: this.features.commands_enabled }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.error || `HTTP ${r.status}`);
+        }
+        const j = await r.json();
+        this.featuresSaveOk = true;
+        this.featuresSaveMessage = j.note || 'saved.';
+      } catch (e) {
+        this.featuresSaveErr = true;
+        this.featuresSaveMessage = e.message || String(e);
+      }
+    },
+
+    /* flashes */
+    flashOnChange(next) {
+      const pw = Math.round(next.total_power_W || 0);
+      if (this._prev.power !== null && pw !== this._prev.power) this.kick('power');
+      this._prev.power = pw;
+      const en = Math.round(next.total_energy_today_Wh || 0);
+      if (this._prev.energy !== null && en !== this._prev.energy) this.kick('energy');
+      this._prev.energy = en;
+      const lv = next.live_count || 0;
+      if (this._prev.live !== null && lv !== this._prev.live) this.kick('live');
+      this._prev.live = lv;
+    },
+    kick(name) {
+      this.flashes[name] = false;
+      this.$nextTick(() => {
+        requestAnimationFrame(() => { this.flashes[name] = true; });
+        setTimeout(() => { this.flashes[name] = false; }, 700);
+      });
+    },
+
+    /* Retention */
+    async saveRetention() {
+      this.retentionSaving = true;
+      this.retentionSaveOk = this.retentionSaveErr = false;
+      this.retentionSaveMessage = '';
+      try {
+        const r = await fetch('api/retention', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telemetry_days: this.retention.telemetry_days }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.error || `HTTP ${r.status}`);
+        }
+        this.retentionSaveOk = true;
+        this.retentionSaveMessage = 'saved · sweep on next midnight or restart aps-unified';
+        await this.refreshRetention();
+      } catch (e) {
+        this.retentionSaveErr = true;
+        this.retentionSaveMessage = 'save failed · ' + e.message;
+      } finally {
+        this.retentionSaving = false;
+        setTimeout(() => {
+          this.retentionSaveOk = this.retentionSaveErr = false;
+          this.retentionSaveMessage = '';
+        }, 6000);
+      }
+    },
+
+    /* Logging (verbose toggle) */
+    async saveLogging() {
+      this.loggingSaveOk = this.loggingSaveErr = false;
+      this.loggingSaveMessage = '';
+      try {
+        const r = await fetch('api/logging', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verbose: !!this.logging.verbose }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.loggingSaveOk = true;
+        this.loggingSaveMessage = this.logging.verbose
+          ? 'verbose enabled · daemon picks it up within ~30s'
+          : 'verbose disabled';
+      } catch (e) {
+        this.loggingSaveErr = true;
+        this.loggingSaveMessage = 'save failed · ' + e.message;
+      } finally {
+        setTimeout(() => {
+          this.loggingSaveOk = this.loggingSaveErr = false;
+          this.loggingSaveMessage = '';
+        }, 5000);
+      }
+    },
+
+    /* Per-inverter enable/disable toggle */
+    async toggleInverter(idx) {
+      this.editInverters[idx].enabled = this.editInverters[idx].enabled === false;
+      try {
+        const r = await fetch('api/inverters', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inverters: this.editInverters }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        this.editInverters = j.inverters || this.editInverters;
+      } catch (e) {
+        // revert on failure
+        this.editInverters[idx].enabled = this.editInverters[idx].enabled === false;
+        console.warn('toggle inverter failed', e);
+      }
+    },
+
+    /* Radio (TX power) */
+    txPowerHint() {
+      const v = this.radio.tx_power_dbm;
+      if (v <= -10) return 'Minimal — short range / power saving / lowest interference into other 2.4 GHz devices on your network.';
+      if (v <= -5)  return 'Low — for benchtop / very close-range testing.';
+      if (v <=  0)  return 'Conservative — comparable to a typical Zigbee coordinator.';
+      if (v <=  4)  return 'Standard — comparable to stock CC2531 + kadzsol firmware levels.';
+      if (v ===  5) return 'Default — matches our firmware ship value (5 dBm). Reaches inverters at typical home distances; bump higher only if you see polling failures from outbuildings or thick walls.';
+      if (v <= 10)  return 'High-PA path active (+6..+10 dBm). 2–3× the range of default; safe everywhere; recommended first step if +5 dBm misses a distant inverter.';
+      if (v <= 15)  return 'High-PA (+11..+15 dBm). Strong signal — clears most walls and outdoor distance. Some neighborly-Wi-Fi interference possible.';
+      if (v <= 19)  return 'High-PA, near regulatory ceiling. Use only if lower settings fail to reach an inverter.';
+      return 'Maximum (+20 dBm) — equals the EU SRD legal ceiling for 2.4 GHz. Antenna gain would push you over: this is for a bare dongle on a workbench, not behind a high-gain external antenna.';
+    },
+    async saveRadio() {
+      this.radioSaving = true;
+      this.radioSaveOk = this.radioSaveErr = false;
+      this.radioSaveMessage = '';
+      try {
+        const r = await fetch('api/radio', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tx_power_dbm: this.radio.tx_power_dbm }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.error || `HTTP ${r.status}`);
+        }
+        const j = await r.json();
+        this.radio = { ...this.radio, ...(j.config || {}) };
+        this.radioSaveOk = true;
+        this.radioSaveMessage = 'saved · effective on next bridge reconnect (~30s) or restart aps-unified to apply now';
+      } catch (e) {
+        this.radioSaveErr = true;
+        this.radioSaveMessage = 'save failed · ' + e.message;
+      } finally {
+        this.radioSaving = false;
+        setTimeout(() => {
+          this.radioSaveOk = this.radioSaveErr = false;
+          this.radioSaveMessage = '';
+        }, 7000);
+      }
+    },
+
+    /* MQTT save */
+    async saveMqtt() {
+      this.saving = true; this.saveOk = false; this.saveErr = false; this.saveMessage = '';
+      try {
+        const r = await fetch('api/mqtt', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.mqtt),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        this.mqtt = { ...this.mqtt, ...(j.config || {}) };
+        this.saveOk = true; this.saveMessage = 'saved · daemon reloads within 30s';
+      } catch (e) {
+        this.saveErr = true; this.saveMessage = 'save failed · ' + e.message;
+      } finally {
+        this.saving = false;
+        setTimeout(() => { this.saveOk = this.saveErr = false; this.saveMessage = ''; }, 6000);
+      }
+    },
+
+    /* Inverter management */
+    openAddInverter() {
+      this.invForm = { idx: null, label: '', name: '', serial: '', family: '',
+                       short_addr_on_wire: '', calib: 0, error: '',
+                       original: null, nameTouched: false, panels: [] };
+      this.modal = 'edit';
+    },
+    openEditInverter(idx) {
+      const inv = this.editInverters[idx];
+      // Hydrate panel rows to the family's expected count so the user sees
+      // a fixed N rows to fill in even if the saved config is empty/short.
+      const exp = this.expectedPanelCount(inv.family);
+      const saved = (inv.panels || []).map(p => ({
+        label: p.label || '', serial: p.serial || ''
+      }));
+      while (saved.length < exp) saved.push({ label: '', serial: '' });
+      this.invForm = { idx, label: inv.label || '', name: inv.name,
+                       serial: inv.serial,
+                       family: inv.family,
+                       short_addr_on_wire: inv.short_addr_on_wire || '',
+                       calib: inv.calib || 0,
+                       error: '', original: { ...inv },
+                       nameTouched: true,
+                       panels: saved };
+      this.modal = 'edit';
+    },
+    /* Nameplate panel count per family. QS1 is 4, YC600 + DS3 are 2.
+       Used to seed the edit modal with the right number of empty rows. */
+    expectedPanelCount(family) {
+      if (family === 'QS1') return 4;
+      return 2;
+    },
+    syncPanelsToFamily() {
+      const exp = this.expectedPanelCount(this.invForm.family);
+      const cur = this.invForm.panels || [];
+      while (cur.length < exp) cur.push({ label: '', serial: '' });
+      // Don't truncate if user already filled extra rows — let server validate.
+      this.invForm.panels = cur;
+    },
+    /* Mask all but the last 4 hex chars. Inverter serials function as soft
+       credentials (PAN + serial observed off-air → any nearby coordinator
+       can poll the inverter), so the management table shows only enough to
+       identify which row is which. Full serial only in the Edit modal. */
+    maskSerial(s) {
+      if (!s || s.length < 5) return s || '—';
+      return '••••••••' + s.slice(-4);
+    },
+
+    /* Strip diacritics, lowercase, replace non-slug chars with hyphen.
+       "Garage East" -> "garage-east", "Toit Été" -> "toit-ete". */
+    slugify(s) {
+      return (s || '')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 32);
+    },
+    syncNameFromLabel() {
+      // Existing inverters: identifier is locked (changing it would break
+      // MQTT topic continuity + HA entity IDs). Only auto-derive when
+      // creating a brand-new inverter.
+      if (this.invForm.idx !== null) return;
+      this.invForm.name = this.slugify(this.invForm.label) || this.invForm.name;
+    },
+    autoDetectFamily() {
+      const s = (this.invForm.serial || '').toUpperCase();
+      const fam = FAMILY_BY_PREFIX[s.slice(0,4)];
+      if (fam && !this.invForm.family) this.invForm.family = fam;
+    },
+    get canSaveInverter() {
+      const f = this.invForm;
+      if (!f.name || !/^[a-z0-9_\-]+$/.test(f.name)) return false;
+      // Label is optional, but if present must be sane (no control chars,
+      // no quotes, no pipes — matches server-side _validate_inverter).
+      if (f.label && !/^[A-Za-zÀ-ÿ0-9 ._\-'/]+$/.test(f.label)) return false;
+      if (!/^[0-9A-Fa-f]{12}$/.test(f.serial)) return false;
+      if (!['YC600','QS1','DS3'].includes(f.family)) return false;
+      if (f.short_addr_on_wire && !/^[0-9A-Fa-f]{4}$/.test(f.short_addr_on_wire)) return false;
+      return true;
+    },
+    async saveInverter() {
+      const f = this.invForm;
+      const entry = {
+        name: f.name.trim(),
+        label: (f.label || '').trim(),
+        serial: f.serial.toUpperCase().trim(),
+        family: f.family,
+        short_addr_on_wire: (f.short_addr_on_wire || '').toUpperCase().trim(),
+        calib: Math.max(-300, Math.min(300, parseInt(f.calib) || 0)),
+        panels: (f.panels || []).map(p => ({
+          label: (p.label || '').trim(),
+          serial: (p.serial || '').trim(),
+        })),
+      };
+      let next = [...this.editInverters];
+      if (f.idx === null) next.push(entry);
+      else next[f.idx] = entry;
+      await this.commitInverters(next);
+    },
+    async deleteInverter(idx) {
+      if (!confirm('Remove inverter "' + this.editInverters[idx].name + '"?')) return;
+      const next = this.editInverters.filter((_, i) => i !== idx);
+      await this.commitInverters(next);
+    },
+    async commitInverters(list) {
+      try {
+        const r = await fetch('api/inverters', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inverters: list }),
+        });
+        const j = await r.json();
+        if (!r.ok || j.error) {
+          this.invForm.error = j.error || ('HTTP ' + r.status);
+          return;
+        }
+        this.editInverters = j.inverters;
+        this.modal = null;
+        this.invForm.error = '';
+        // The daemon's hot-reload will pick this up within ~30s.
+      } catch (e) {
+        this.invForm.error = 'network error · ' + e.message;
+      }
+    },
+    openGuide() { this.modal = 'guide'; },
+
+    /* helpers */
+    get ageWarning() {
+      if (!this.snapshot.inverters?.length) return true;
+      return this.snapshot.inverters.filter(i => i.status === 'live').length === 0;
+    },
+    get liveLabel() {
+      const ts = this.snapshot.now;
+      if (!ts) return 'CONNECTING…';
+      const t = ts.split('T')[1]?.replace(/[+-]\d{2}:\d{2}$/, '') || ts;
+      return 'LIVE · ' + t;
+    },
+    panelMax(inv) { return PANEL_MAX_BY_TYPE[inv.type] || 350; },
+    serialToAddr(name) {
+      const m = this.editInverters.find(i => i.name === name);
+      if (m && m.short_addr_on_wire) return '0x' + m.short_addr_on_wire;
+      return KNOWN_ADDR_FALLBACK[name] || '—';
+    },
+    fmt(n, decimals = 1) {
+      if (n == null || isNaN(n)) return '—';
+      return Number(n).toLocaleString('en-US', {
+        minimumFractionDigits: decimals, maximumFractionDigits: decimals
+      });
+    },
+
+    /* Panel-grid column count — keeps panel tiles to 2 rows regardless of
+       count, so the card height stays predictable across 2/4/6/8-panel
+       inverters (YC600=2, QS1=4, Hoymiles HMS-1600-4T=4, HMS-2000-6T=6). */
+    panelCols(n) {
+      if (n <= 2) return 2;     // 2 panels → 1 row of 2
+      if (n <= 4) return 2;     // 3-4 panels → 2 rows of 2
+      if (n <= 6) return 3;     // 5-6 panels → 2 rows of 3
+      return 4;                  // 7-8 panels → 2 rows of 4
+    },
+
+    /* Inverter-control helpers — wire the per-card slider + reboot button. */
+    powerFloor(type) {
+      if (type === 'DS3') return 100;
+      return 50;       /* YC600 / QS1 / unknown */
+    },
+    powerCeiling(type) {
+      if (type === 'DS3') return 800;
+      if (type === 'QS1') return 400;
+      return 700;      /* YC600 / unknown */
+    },
+    async setMaxPower(inv) {
+      const watts = this.cmdWatts[inv.name];
+      if (!watts) return;
+      this.cmdStatus[inv.name] = `queuing set_max_power = ${watts} W…`;
+      try {
+        const r = await fetch('api/action', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_max_power',
+                                 inverter: inv.name, watts }),
+        });
+        const j = await r.json();
+        this.cmdStatus[inv.name] = r.ok
+          ? `queued — daemon picks up within 30 s. ${j.note || ''}`
+          : `rejected: ${j.error || r.status}`;
+      } catch (e) {
+        this.cmdStatus[inv.name] = `error: ${e.message || e}`;
+      }
+    },
+    async rebootInverter(inv) {
+      if (!confirm(`Soft-reboot ${inv.name}? It will drop offline for ~30 s.`)) return;
+      this.cmdStatus[inv.name] = 'queuing reboot…';
+      try {
+        const r = await fetch('api/action', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'reboot', inverter: inv.name }),
+        });
+        const j = await r.json();
+        this.cmdStatus[inv.name] = r.ok
+          ? `queued — daemon picks up within 30 s.`
+          : `rejected: ${j.error || r.status}`;
+      } catch (e) {
+        this.cmdStatus[inv.name] = `error: ${e.message || e}`;
+      }
+    },
+    ago(s) {
+      if (s == null) return '—';
+      if (s < 60) return Math.round(s) + ' s';
+      if (s < 3600) return Math.round(s / 60) + ' min';
+      return (s / 3600).toFixed(1) + ' h';
+    },
+
+    /* Charts */
+    chartTheme() {
+      const cs = getComputedStyle(document.documentElement);
+      return {
+        ink:   cs.getPropertyValue('--ink').trim()   || '#f4f1ea',
+        dim:   cs.getPropertyValue('--dim').trim()   || '#5a6470',
+        grid:  cs.getPropertyValue('--grid').trim()  || '#1b2126',
+        panel: cs.getPropertyValue('--panel').trim() || '#14181c',
+        phos:  cs.getPropertyValue('--phos').trim()  || '#69d97a',
+        solar: cs.getPropertyValue('--solar').trim() || '#ffba3d',
+        err:   cs.getPropertyValue('--error').trim() || '#e84a3a',
+        mono:  'JetBrains Mono',
+      };
+    },
+    invColor(name, T) {
+      const palette = [T.phos, T.solar, T.err, T.ink, T.dim];
+      const fixed = { 'yc600-1': T.phos, 'yc600-2': T.solar, 'ds3': T.err };
+      if (fixed[name]) return fixed[name];
+      const idx = (this.editInverters.findIndex(i => i.name === name) + 3) % palette.length;
+      return palette[idx];
+    },
+
+    async drawToday() {
+      const r = await fetch('api/today');
+      const data = await r.json();
+      const T = this.chartTheme();
+      let nPoints = 0;
+      const lbls = data.labels || {};
+      const datasets = Object.entries(data.series || {}).map(([inv, points]) => {
+        nPoints += points.length;
+        const c = this.invColor(inv, T);
+        return {
+          label: lbls[inv] || inv,
+          data: points.map(p => ({ x: p.ts, y: p.power_W })),
+          borderColor: c, backgroundColor: c + '22',
+          tension: 0.18, pointRadius: 0, borderWidth: 1.5, fill: true,
+        };
+      });
+      this.todayHint = nPoints ? `${nPoints} samples` : 'no data yet';
+      // Update in place — destroy+recreate flashes the canvas blank for a
+      // frame each refresh cycle, which reads as the chart "disappearing".
+      if (this.todayChart) {
+        this.todayChart.data.datasets = datasets;
+        this.todayChart.update('none');
+        return;
+      }
+      const ctx = document.getElementById('todayChart');
+      if (!ctx) return;
+      this.todayChart = new Chart(ctx, {
+        type: 'line', data: { datasets }, options: chartOpts(T, 'W', { time: true }),
+      });
+    },
+
+    async drawHistory() {
+      const r = await fetch('api/history?days=7');
+      const data = await r.json();
+      const T = this.chartTheme();
+      const allDates = [];
+      Object.values(data.series || {}).forEach(arr => {
+        arr.forEach(p => { if (!allDates.includes(p.date)) allDates.push(p.date); });
+      });
+      allDates.sort();
+      const lbls = data.labels || {};
+      const datasets = Object.entries(data.series || {}).map(([inv, points]) => {
+        const byDate = Object.fromEntries(points.map(p => [p.date, p.total_Wh]));
+        const c = this.invColor(inv, T);
+        return {
+          label: lbls[inv] || inv,
+          data: allDates.map(d => byDate[d] ?? 0),
+          backgroundColor: c + 'cc', borderColor: c, borderWidth: 1,
+        };
+      });
+      // Update in place — see drawToday() comment.
+      if (this.historyChart) {
+        this.historyChart.data.labels = allDates;
+        this.historyChart.data.datasets = datasets;
+        this.historyChart.update('none');
+        return;
+      }
+      const ctx = document.getElementById('historyChart');
+      if (!ctx) return;
+      this.historyChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: allDates, datasets },
+        options: chartOpts(T, 'Wh', { stacked: true }),
+      });
+    },
+  };
+}
+
+function chartOpts(T, unit, extra = {}) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'nearest', intersect: false },
+    animation: { duration: 320, easing: 'easeOutCubic' },
+    plugins: {
+      legend: { labels: {
+        color: T.ink, font: { family: T.mono, size: 11 },
+        usePointStyle: true, padding: 18,
+      }},
+      tooltip: {
+        backgroundColor: T.panel,
+        borderColor: T.grid, borderWidth: 1,
+        titleColor: T.ink, bodyColor: T.ink,
+        titleFont: { family: T.mono, size: 12 },
+        bodyFont: { family: T.mono, size: 12 },
+        padding: 10, cornerRadius: 0, displayColors: true,
+        callbacks: { label: c => ` ${c.dataset.label}  ${c.parsed.y?.toFixed?.(1)} ${unit}` },
+      },
+    },
+    scales: {
+      x: extra.time ? {
+        type: 'time',
+        time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+        ticks: { color: T.dim, font: { family: T.mono, size: 10 } },
+        grid: { color: T.grid, drawBorder: false },
+      } : {
+        stacked: !!extra.stacked,
+        ticks: { color: T.dim, font: { family: T.mono, size: 10 } },
+        grid: { color: T.grid, drawBorder: false },
+      },
+      y: {
+        stacked: !!extra.stacked,
+        ticks: {
+          color: T.dim, font: { family: T.mono, size: 10 },
+          callback: v => v + ' ' + unit,
+        },
+        grid: { color: T.grid, drawBorder: false },
+        beginAtZero: true,
+      }
+    }
+  };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python:
+    name: Python syntax + config validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile every Python source under host/ and tools/
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find host tools -type f -name '*.py' | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No Python files found under host/ or tools/ — nothing to compile."
+            exit 1
+          fi
+          printf 'Compiling %d file(s):\n' "${#files[@]}"
+          printf '  %s\n' "${files[@]}"
+          python -m py_compile "${files[@]}"
+          echo "All Python files compiled cleanly."
+
+      - name: Validate every JSON file parses
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find . -type f -name '*.json' -not -path './.git/*' | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No JSON files in the repo — nothing to validate."
+            exit 0
+          fi
+          rc=0
+          for f in "${files[@]}"; do
+            if python -c "import json,sys; json.load(open(sys.argv[1]))" "$f"; then
+              echo "  ok   $f"
+            else
+              echo "  FAIL $f"
+              rc=1
+            fi
+          done
+          exit $rc
+
+      - name: Validate every YAML file parses
+        run: |
+          set -euo pipefail
+          # PyYAML ships with the setup-python runner image; install defensively.
+          python -m pip install --quiet pyyaml
+          mapfile -t files < <(find . -type f \( -name '*.yml' -o -name '*.yaml' \) -not -path './.git/*' | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No YAML files in the repo — nothing to validate."
+            exit 0
+          fi
+          rc=0
+          for f in "${files[@]}"; do
+            # safe_load_all handles multi-document files (e.g. k8s manifests).
+            if python -c "import yaml,sys; list(yaml.safe_load_all(open(sys.argv[1])))" "$f"; then
+              echo "  ok   $f"
+            else
+              echo "  FAIL $f"
+              rc=1
+            fi
+          done
+          exit $rc
+
+  addon-lint:
+    name: Home Assistant add-on lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check whether an addon/ directory exists
+        id: addon
+        run: |
+          if [ -f addon/config.yaml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No addon/config.yaml — skipping the add-on linter."
+          fi
+
+      - name: Lint the Home Assistant add-on
+        if: steps.addon.outputs.present == 'true'
+        uses: frenck/action-addon-linter@v2
+        with:
+          path: "./addon"

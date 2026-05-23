@@ -1,0 +1,8 @@
+# The add-on image is built FROM the project's prebuilt multi-arch image
+# (ghcr.io/samr037/apsystems-bridge), which already carries the daemon,
+# web UI and Python dependencies. The add-on layer only adds the Home
+# Assistant wiring in run.sh. The GHCR image is published by the
+# docker-publish.yml GitHub Actions workflow.
+build_from:
+  aarch64: ghcr.io/samr037/apsystems-bridge:latest
+  amd64: ghcr.io/samr037/apsystems-bridge:latest

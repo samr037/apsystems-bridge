@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "name": "APsystems Open Bridge",
+  "chip": "CC2652P",
+  "firmware": [
+    {
+      "name": "APsystems Open Bridge — main",
+      "version": "v5",
+      "url": "https://github.com/samr037/apsystems-bridge/releases/latest/download/aps-bridge.bin",
+      "address": "0x00000000",
+      "crc32": null
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+# Keep the build context tiny so `docker build` is fast on a Pi.
+# We only ship the contents of host/ at runtime; everything else is dev only.
+
+.git
+.github
+.gitlab-ci.yml
+addon
+repository.yaml
+.idea
+.vscode
+.claude
+.DS_Store
+node_modules
+
+# Python build droppings
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+
+# Test + dev tooling never needed in the runtime image
+host/tests
+host/_local
+host/secrets.py
+
+# Firmware tree — huge, only needed offline by the firmware build host
+firmware
+firmware/build
+firmware/cc26x2r2_sdk_*/
+firmware/cc13x2_cc26x2_sdk_*/
+firmware/sysconfig*/
+firmware/aps-bridge.elf
+firmware/aps-bridge.map
+firmware/aps-bridge.lst
+
+# On-air captures + private docs
+captures
+captures/*.pcap
+captures/*.frames.tsv
+docs/private
+
+# Repo-root documentation + assets (not needed by the runtime; reduces the
+# build context the daemon image sees).
+README.md
+ROADMAP.md
+PLAN.md
+CONTRIBUTING.md
+SECURITY.md
+THIRD_PARTY_NOTICES.md
+LICENSE
+assets
+docs
+tools
+
+# Local-only / env files
+*.swp
+*.bak
+*.local
+.env
+.env.*
+docker-compose.override.yml
